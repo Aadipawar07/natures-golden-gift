@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 
 process.env.VERCEL = '1';
 process.env.NODE_ENV = 'production';
@@ -7,9 +8,12 @@ process.env.CLIENT_URL = 'https://store.example.com/';
 process.env.CLIENT_ORIGINS = '';
 process.env.PUBLIC_API_URL = 'https://api.example.com';
 process.env.CASHFREE_RETURN_URL = 'https://store.example.com/checkout';
+process.env.CASHFREE_SECRET_KEY = 'unit-cashfree-webhook-secret';
+process.env.SHIPROCKET_WEBHOOK_TOKEN = 'unit-shiprocket-webhook-token';
 
 const { default: app } = await import('../index.js');
 const { connectDB, disconnectDB, mongoose } = await import('../config/db.js');
+const Order = (await import('../models/Order.js')).default;
 
 test('serverless entry exports the Express app and allows configured CORS origins', async (t) => {
   const server = app.listen(0);
@@ -31,6 +35,114 @@ test('serverless entry exports the Express app and allows configured CORS origin
     assert.equal(response.status, 204);
     assert.equal(response.headers.get('access-control-allow-origin'), origin);
   }
+});
+
+test('webhook probes and test pings return 200 without connecting to MongoDB', async (t) => {
+  const originalConnect = mongoose.connect;
+  let connectCount = 0;
+  mongoose.connect = async () => {
+    connectCount += 1;
+    throw new Error('Webhook probes must not connect to MongoDB.');
+  };
+  const server = app.listen(0);
+  t.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    await disconnectDB();
+    mongoose.connect = originalConnect;
+  });
+
+  const url = `http://127.0.0.1:${server.address().port}/api/webhooks`;
+  for (const provider of ['cashfree', 'shiprocket']) {
+    for (const method of ['GET', 'HEAD']) {
+      const response = await fetch(`${url}/${provider}`, { method });
+      assert.equal(response.status, 200);
+      if (method === 'GET') assert.deepEqual(await response.json(), { ok: true });
+      else assert.equal(await response.text(), '');
+    }
+  }
+
+  const post = (provider, body) => fetch(`${url}/${provider}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+  for (const body of ['', '{}', '{"type":"TEST"}', '{"type":"PAYMENT","data":{}}']) {
+    const response = await post('cashfree', body);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, test: true });
+  }
+  const unsignedCashfreeEvent = await post(
+    'cashfree',
+    '{"type":"PAYMENT_SUCCESS_WEBHOOK","data":{"order":{"order_id":"real-123"}}}'
+  );
+  assert.equal(unsignedCashfreeEvent.status, 401);
+
+  for (const body of ['{}', '{"test":"dashboard"}']) {
+    const response = await post('shiprocket', body);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      ok: true,
+      message: 'Shiprocket webhook ready',
+    });
+  }
+  const unauthenticatedShiprocketEvent = await post('shiprocket', '{"order_id":"real-123"}');
+  assert.equal(unauthenticatedShiprocketEvent.status, 401);
+  assert.equal(connectCount, 0);
+});
+
+test('signed Cashfree and authenticated Shiprocket events safely acknowledge unmatched orders', async (t) => {
+  const originalConnect = mongoose.connect;
+  const originalFindOne = Order.findOne;
+  let connectCount = 0;
+  mongoose.connect = async () => {
+    connectCount += 1;
+    return { connection: { host: 'test', name: 'test', readyState: 1 } };
+  };
+  Order.findOne = () => ({ exec: async () => null });
+  const server = app.listen(0);
+  t.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    await disconnectDB();
+    mongoose.connect = originalConnect;
+    Order.findOne = originalFindOne;
+  });
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}/api/webhooks`;
+  const rawBody = Buffer.from(JSON.stringify({
+    type: 'PAYMENT_FAILED_WEBHOOK',
+    data: { order: { order_id: 'unmatched-123' } },
+  }));
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = createHmac('sha256', process.env.CASHFREE_SECRET_KEY)
+    .update(Buffer.concat([Buffer.from(timestamp), rawBody]))
+    .digest('base64');
+  const cashfreeResponse = await fetch(`${baseUrl}/cashfree`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-webhook-signature': signature,
+      'x-webhook-timestamp': timestamp,
+    },
+    body: rawBody,
+  });
+  assert.equal(cashfreeResponse.status, 200);
+  assert.deepEqual(await cashfreeResponse.json(), { received: true, matched: false });
+
+  const shiprocketResponse = await fetch(`${baseUrl}/shiprocket`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.SHIPROCKET_WEBHOOK_TOKEN,
+    },
+    body: JSON.stringify({ order_id: 'unmatched-123' }),
+  });
+  assert.equal(shiprocketResponse.status, 200);
+  assert.deepEqual(await shiprocketResponse.json(), { received: true, matched: false });
+  assert.equal(connectCount, 1);
 });
 
 test('MongoDB connections are reused across concurrent serverless requests', async () => {

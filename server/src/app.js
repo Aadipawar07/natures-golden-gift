@@ -45,6 +45,9 @@ app.use(cors({
   ],
 }));
 
+app.use('/api/webhooks/cashfree', cashfreeWebhookRoutes);
+app.use('/api/webhooks/shiprocket', shiprocketWebhookRoutes);
+
 app.use(asyncRoute(async (req, res, next) => {
   await connectDB();
   next();
@@ -61,8 +64,6 @@ app.get(
   })
 );
 
-app.use('/api/webhooks/cashfree', cashfreeWebhookRoutes);
-app.use('/api/webhooks/shiprocket', shiprocketWebhookRoutes);
 app.use(express.json({ limit: '64kb' }));
 app.use('/api', apiLimiter);
 app.use('/api', paymentRoutes);

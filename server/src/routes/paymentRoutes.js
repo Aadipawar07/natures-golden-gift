@@ -1,5 +1,6 @@
 import { createHash, randomInt } from 'node:crypto';
 import express from 'express';
+import { connectDB } from '../../config/db.js';
 import Order from '../../models/Order.js';
 import { calculateCart } from '../catalog.js';
 import { config } from '../config.js';
@@ -21,6 +22,10 @@ import { verifyCashfreeSignature } from '../services/webhookSecurity.js';
 
 const router = express.Router();
 const webhookRouter = express.Router();
+
+function webhookProbe(req, res) {
+  res.status(200).json({ ok: true });
+}
 
 function normalizeCheckout(body, idempotencyKey) {
   const customer = body.customer && typeof body.customer === 'object' ? body.customer : body;
@@ -398,13 +403,36 @@ router.post(
   })
 );
 
+webhookRouter.route('/')
+  .get(webhookProbe)
+  .head(webhookProbe);
+
 webhookRouter.post(
   '/',
   express.raw({ type: 'application/json', limit: '1mb' }),
   asyncRoute(async (req, res) => {
     const rawBody = req.body;
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+      return res.status(200).json({ ok: true, test: true });
+    }
+
+    let event;
+    try {
+      event = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      throw new HttpError(400, 'Invalid Cashfree webhook payload.');
+    }
+    if (!event || typeof event !== 'object' || Array.isArray(event)) {
+      throw new HttpError(400, 'Invalid Cashfree webhook payload.');
+    }
+
     const signature = req.get('x-webhook-signature');
     const timestamp = req.get('x-webhook-timestamp');
+    const cashfreeOrderId = event.data?.order?.order_id;
+    if (event.type === 'TEST' || !event.data || (!signature && !cashfreeOrderId)) {
+      return res.status(200).json({ ok: true, test: true });
+    }
+
     if (!verifyCashfreeSignature({
       rawBody,
       signature,
@@ -414,17 +442,10 @@ webhookRouter.post(
       throw new HttpError(401, 'Invalid Cashfree webhook signature.');
     }
 
-    let event;
-    try {
-      event = JSON.parse(rawBody.toString('utf8'));
-    } catch {
-      throw new HttpError(400, 'Invalid Cashfree webhook payload.');
-    }
-
     const eventType = event.type;
-    const cashfreeOrderId = event.data?.order?.order_id;
     if (!cashfreeOrderId) throw new HttpError(400, 'Cashfree webhook is missing order_id.');
 
+    await connectDB();
     const order = await Order.findOne({
       'payment.cashfreeOrderId': String(cashfreeOrderId),
     }).exec();

@@ -1,4 +1,5 @@
 import express from 'express';
+import { connectDB } from '../../config/db.js';
 import Order from '../../models/Order.js';
 import { asyncRoute, HttpError } from '../errors.js';
 import { mapShipmentStatus, checkServiceability, fetchTracking } from '../services/shiprocketService.js';
@@ -15,6 +16,10 @@ const statusRank = {
   DELIVERED: 3,
   CANCELLED: 4,
 };
+
+function webhookProbe(req, res) {
+  res.status(200).json({ ok: true });
+}
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -114,20 +119,35 @@ router.get(
   })
 );
 
+webhookRouter.route('/')
+  .get(webhookProbe)
+  .head(webhookProbe);
+
 webhookRouter.post(
   '/',
   express.raw({ type: 'application/json', limit: '1mb' }),
   asyncRoute(async (req, res) => {
-    const suppliedToken = req.get('x-api-key');
-    if (!verifySharedToken(config.shiprocketWebhookToken, suppliedToken)) {
-      throw new HttpError(401, 'Invalid Shiprocket webhook token.');
+    const rawBody = req.body;
+    if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+      return res.status(200).json({ ok: true, message: 'Shiprocket webhook ready' });
     }
 
     let payload;
     try {
-      payload = JSON.parse(req.body.toString('utf8'));
+      payload = JSON.parse(rawBody.toString('utf8'));
     } catch {
       throw new HttpError(400, 'Invalid Shiprocket webhook payload.');
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new HttpError(400, 'Invalid Shiprocket webhook payload.');
+    }
+    if (!payload.order_id && !payload.awb && !payload.shipment_id) {
+      return res.status(200).json({ ok: true, message: 'Shiprocket webhook ready' });
+    }
+
+    const suppliedToken = req.get('x-api-key');
+    if (!verifySharedToken(config.shiprocketWebhookToken, suppliedToken)) {
+      throw new HttpError(401, 'Invalid Shiprocket webhook token.');
     }
 
     const providerOrderId = String(
@@ -150,8 +170,22 @@ webhookRouter.post(
     if (alternatives.length === 0) {
       return res.status(200).json({ received: true, matched: false });
     }
-    const order = await Order.findOne({ $or: alternatives }).exec();
-    if (!order) return res.status(200).json({ received: true, matched: false });
+    await connectDB();
+    let order;
+    try {
+      order = await Order.findOne({ $or: alternatives }).exec();
+    } catch (error) {
+      console.warn('[shiprocket] webhook order lookup failed.', error.message);
+      throw error;
+    }
+    if (!order) {
+      console.warn('[shiprocket] webhook order not found.', {
+        providerOrderId,
+        shiprocketOrderIds,
+        awbCode: awbCode || null,
+      });
+      return res.status(200).json({ received: true, matched: false });
+    }
 
     const detail = String(payload.current_status || payload.current_status_code || payload.status || '')
       .trim()

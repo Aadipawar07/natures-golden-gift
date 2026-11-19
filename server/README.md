@@ -58,12 +58,13 @@ Send `{ "orderNumber": "#HLD-8492" }` and the registered email or phone in `X-Or
 ### `POST /api/webhooks/cashfree`
 
 Configure this HTTPS URL in Cashfree. The API verifies `x-webhook-signature` against the exact raw request bytes and `x-webhook-timestamp`, checks the paid amount against the stored order, and submits eligible paid orders to Shiprocket. Signatures older than 15 minutes are rejected.
+`GET` and `HEAD` return `{ "ok": true }` for reachability checks. Empty, data-less, and `TEST` POSTs are acknowledged with `{ "ok": true, "test": true }`; payment events with an order ID still require a valid signature.
 
 ### Shipping
 
 - `GET /api/shipping/check-pincode/:pincode?weight=0.5` — returns serviceability, estimated days, and COD availability.
 - `GET /api/orders/track/:orderNumber` — send the registered email or phone in the `X-Order-Contact` header; returns shipment/payment status and tracking events.
-- `POST /api/webhooks/shiprocket` — configure Shiprocket to send `x-api-key` using `SHIPROCKET_WEBHOOK_TOKEN`. Status updates are normalized and cannot downgrade an order's saved shipment milestone.
+- `/api/webhooks/shiprocket` — configure Shiprocket to send `x-api-key` using `SHIPROCKET_WEBHOOK_TOKEN` for POST events. `GET`/`HEAD` probes and POST payloads without order, AWB, or shipment IDs are acknowledged. Unmatched orders are logged and acknowledged with 200; status updates are normalized and cannot downgrade an order's saved shipment milestone.
 
 ### `POST /api/inquiries`
 
