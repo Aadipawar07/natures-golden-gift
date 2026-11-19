@@ -71,13 +71,15 @@ Accepts `kind` (`CONTACT` or `GIFTING_BULK`), `name`, `email`, and `message`; ph
 
 ## Operations and security
 
-- Set `CLIENT_ORIGINS` to the exact storefront origins. Production startup requires it.
+- Set `CLIENT_URL` or `CLIENT_ORIGINS` to the exact storefront origins. Production startup requires one.
 - Put the API behind HTTPS and a configured reverse proxy. Set `TRUST_PROXY=true` only when the API is behind a trusted single proxy.
 - Configure Cashfree and Shiprocket credentials, webhook URLs/token, pickup location, and pickup pincode before enabling those flows.
 - Set up database backups, monitoring, and an operator process for orders whose Shiprocket booking reports `FAILED`.
 - Configure the storefront's root `.env` from `.env.example`; production builds must provide the deployed `VITE_API_URL` and `VITE_CASHFREE_ENV`. Provider flows still require sandbox testing with real credentials before launch.
 
 Run unit tests with `npm test`.
+
+On Render, a Secret File named `.env` is loaded from `/etc/secrets/.env`. If that file is absent, local development loads `server/.env`.
 
 ## Vercel deployment
 

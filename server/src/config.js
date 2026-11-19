@@ -1,9 +1,15 @@
 import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serverDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-dotenv.config({ path: path.join(serverDirectory, '.env') });
+const renderSecretPath = '/etc/secrets/.env';
+dotenv.config({
+  path: existsSync(renderSecretPath)
+    ? renderSecretPath
+    : path.join(serverDirectory, '.env'),
+});
 
 const cashfreeEnv = (process.env.CASHFREE_ENV || 'SANDBOX').trim().toUpperCase();
 if (!['SANDBOX', 'PRODUCTION'].includes(cashfreeEnv)) {
