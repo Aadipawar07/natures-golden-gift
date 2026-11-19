@@ -1,0 +1,70 @@
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background-color: var(--bg-linen);
+    color: var(--text-charcoal);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: clip;
+  }
+
+  body {
+    overflow-x: clip;
+    position: relative;
+  }
+
+  h1, h2, h3, h4, .font-editorial {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-saffron);
+    outline-offset: 3px;
+  }
+}
+
+.bg-editorial-grid {
+  background-image:
+    linear-gradient(to right, rgba(35, 31, 32, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(35, 31, 32, 0.04) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.bg-editorial-grid-dark {
+  background-image:
+    linear-gradient(to right, rgba(242, 197, 107, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(242, 197, 107, 0.06) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.glass-light {
+  background: rgba(249, 246, 240, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(231, 214, 184, 0.75);
+}
+
+.glass-dark {
+  background: rgba(23, 27, 23, 0.68);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(242, 197, 107, 0.22);
+}
+
+.grain-overlay {
+  background-image: radial-gradient(rgba(35, 31, 32, 0.05) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
