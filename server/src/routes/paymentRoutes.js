@@ -411,9 +411,15 @@ webhookRouter.post(
   '/',
   express.raw({ type: 'application/json', limit: '1mb' }),
   asyncRoute(async (req, res) => {
-    const rawBody = req.body;
+    const rawBodyValue = req.rawBody ?? req.body;
+    const rawBody = Buffer.isBuffer(rawBodyValue)
+      ? rawBodyValue
+      : typeof rawBodyValue === 'string'
+        ? Buffer.from(rawBodyValue)
+        : null;
     if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
-      return res.status(200).json({ ok: true, test: true });
+      console.info('[cashfree] empty test webhook acknowledged.');
+      return res.status(200).json({ ok: true, message: 'Webhook test acknowledged' });
     }
 
     let event;
@@ -426,13 +432,31 @@ webhookRouter.post(
       throw new HttpError(400, 'Invalid Cashfree webhook payload.');
     }
 
-    const signature = req.get('x-webhook-signature');
-    const timestamp = req.get('x-webhook-timestamp');
-    const cashfreeOrderId = event.data?.order?.order_id;
-    if (event.type === 'TEST' || !event.data || (!signature && !cashfreeOrderId)) {
-      return res.status(200).json({ ok: true, test: true });
+    const cashfreeOrderId = String(event.data?.order?.order_id ?? '').trim();
+    const acknowledgeTest = (reason) => {
+      console.info('[cashfree] test webhook acknowledged.', {
+        reason,
+        orderId: cashfreeOrderId || null,
+      });
+      return res.status(200).json({ ok: true, message: 'Webhook test acknowledged' });
+    };
+    if (
+      String(event.type || '').toUpperCase() === 'TEST' ||
+      !event.data ||
+      !cashfreeOrderId ||
+      /^order_test/i.test(cashfreeOrderId)
+    ) {
+      return acknowledgeTest('test payload');
     }
 
+    await connectDB();
+    const order = await Order.findOne({
+      'payment.cashfreeOrderId': cashfreeOrderId,
+    }).exec();
+    if (!order) return acknowledgeTest('order not found');
+
+    const signature = req.get('x-webhook-signature');
+    const timestamp = req.get('x-webhook-timestamp');
     if (!verifyCashfreeSignature({
       rawBody,
       signature,
@@ -443,13 +467,6 @@ webhookRouter.post(
     }
 
     const eventType = event.type;
-    if (!cashfreeOrderId) throw new HttpError(400, 'Cashfree webhook is missing order_id.');
-
-    await connectDB();
-    const order = await Order.findOne({
-      'payment.cashfreeOrderId': String(cashfreeOrderId),
-    }).exec();
-    if (!order) return res.status(200).json({ received: true, matched: false });
 
     if (eventType === 'PAYMENT_SUCCESS_WEBHOOK') {
       const payment = event.data?.payment;

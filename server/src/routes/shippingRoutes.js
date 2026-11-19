@@ -129,7 +129,7 @@ webhookRouter.post(
   asyncRoute(async (req, res) => {
     const rawBody = req.body;
     if (!Buffer.isBuffer(rawBody) || rawBody.length === 0) {
-      return res.status(200).json({ ok: true, message: 'Shiprocket webhook ready' });
+      return res.status(200).json({ ok: true });
     }
 
     let payload;
@@ -142,7 +142,7 @@ webhookRouter.post(
       throw new HttpError(400, 'Invalid Shiprocket webhook payload.');
     }
     if (!payload.order_id && !payload.awb && !payload.shipment_id) {
-      return res.status(200).json({ ok: true, message: 'Shiprocket webhook ready' });
+      return res.status(200).json({ ok: true });
     }
 
     const suppliedToken = req.get('x-api-key');
@@ -184,7 +184,7 @@ webhookRouter.post(
         shiprocketOrderIds,
         awbCode: awbCode || null,
       });
-      return res.status(200).json({ received: true, matched: false });
+      return res.status(200).json({ ok: true });
     }
 
     const detail = String(payload.current_status || payload.current_status_code || payload.status || '')

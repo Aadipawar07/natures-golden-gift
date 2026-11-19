@@ -46,7 +46,9 @@ app.use(cors({
 }));
 
 app.use('/api/webhooks/cashfree', cashfreeWebhookRoutes);
+app.use('/webhooks/cashfree', cashfreeWebhookRoutes);
 app.use('/api/webhooks/shiprocket', shiprocketWebhookRoutes);
+app.use('/api/webhooks/courier-updates', shiprocketWebhookRoutes);
 
 app.use(asyncRoute(async (req, res, next) => {
   await connectDB();
