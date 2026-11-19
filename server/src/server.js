@@ -1,6 +1,20 @@
-import { config, assertRuntimeConfig } from './config.js';
-import app from './app.js';
-import { connectDB, disconnectDB } from '../config/db.js';
+import dotenv from 'dotenv';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const serverDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const renderSecretPath = '/etc/secrets/.env';
+dotenv.config({
+  path: existsSync(renderSecretPath)
+    ? renderSecretPath
+    : path.join(serverDirectory, '.env'),
+  override: false,
+});
+
+const { config, assertRuntimeConfig } = await import('./config.js');
+const { default: app } = await import('./app.js');
+const { connectDB, disconnectDB } = await import('../config/db.js');
 
 let server;
 let shuttingDown = false;
@@ -13,11 +27,11 @@ if (process.env.VERCEL) {
   try {
     assertRuntimeConfig();
     await connectDB();
-    server = app.listen(config.port, () => {
+    server = app.listen(config.port, '0.0.0.0', () => {
       console.log(`Nature's Golden Gift API listening on port ${config.port}.`);
     });
   } catch (error) {
-    console.error('API startup failed. Check MongoDB availability and MONGODB_URI.', error.name);
+    console.error('API startup failed:', error.message, error);
     process.exitCode = 1;
   }
 

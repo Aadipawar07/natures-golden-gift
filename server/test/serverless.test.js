@@ -36,23 +36,28 @@ test('serverless entry exports the Express app and allows configured CORS origin
 test('MongoDB connections are reused across concurrent serverless requests', async () => {
   const originalConnect = mongoose.connect;
   let connectCount = 0;
+  let connectOptions;
   const connection = { host: 'test', name: 'test', readyState: 1 };
-  mongoose.connect = async () => {
+  mongoose.connect = async (uri, options) => {
     connectCount += 1;
+    connectOptions = { uri, options };
     await new Promise((resolve) => setTimeout(resolve, 10));
     return { connection };
   };
 
   try {
     const [first, second] = await Promise.all([
-      connectDB('mongodb://unit-test'),
-      connectDB('mongodb://unit-test'),
+      connectDB('  "mongodb://unit-test"  '),
+      connectDB('  "mongodb://unit-test"  '),
     ]);
 
     assert.strictEqual(first, connection);
     assert.strictEqual(second, connection);
-    assert.strictEqual(await connectDB('mongodb://unit-test'), connection);
+    assert.strictEqual(await connectDB('  "mongodb://unit-test"  '), connection);
     assert.equal(connectCount, 1);
+    assert.equal(connectOptions.uri, 'mongodb://unit-test');
+    assert.equal(connectOptions.options.family, 4);
+    assert.equal(connectOptions.options.serverSelectionTimeoutMS, 10000);
   } finally {
     await disconnectDB();
     mongoose.connect = originalConnect;

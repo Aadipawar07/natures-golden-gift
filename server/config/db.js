@@ -15,10 +15,14 @@ export async function connectDB(uri = config.mongodbUri) {
   }
   if (cached.connection?.readyState === 1) return cached.connection;
   if (cached.promise) return cached.promise;
-  if (!uri) throw new Error('MONGODB_URI is required to connect to MongoDB.');
+  const normalizedUri = typeof uri === 'string'
+    ? uri.trim().replace(/^['"]|['"]$/g, '').trim()
+    : '';
+  if (!normalizedUri) throw new Error('MONGODB_URI is required to connect to MongoDB.');
 
-  cached.promise = mongoose.connect(uri, {
+  cached.promise = mongoose.connect(normalizedUri, {
     serverSelectionTimeoutMS: 10000,
+    family: 4,
     maxPoolSize: 10,
   }).then(({ connection }) => {
     cached.connection = connection;
