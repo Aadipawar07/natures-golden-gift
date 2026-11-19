@@ -90,7 +90,19 @@ test('webhook probes and test pings return 200 without connecting to MongoDB', a
   }
 
   for (const webhookPath of ['/api/webhooks/shiprocket', '/api/webhooks/courier-updates']) {
-    for (const body of ['', '{}', '{"test":"dashboard"}']) {
+    for (const body of [
+      '',
+      '{}',
+      '{"test":"dashboard"}',
+      JSON.stringify({
+        awb: 59629792084,
+        current_status: 'Delivered',
+        order_id: '13905312',
+        channel_order_id: 'enter your channel order id',
+        channel: 'enter your channel name',
+        courier_name: 'enter courier_name',
+      }),
+    ]) {
       const response = await post(webhookPath, body);
       assert.equal(response.status, 200);
       assert.deepEqual(await response.json(), { ok: true });

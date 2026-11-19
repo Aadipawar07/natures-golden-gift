@@ -21,6 +21,12 @@ function webhookProbe(req, res) {
   res.status(200).json({ ok: true });
 }
 
+function isDashboardTestPayload(payload) {
+  return ['channel_order_id', 'channel', 'courier_name'].some((field) =>
+    typeof payload[field] === 'string' && /^enter your\b/i.test(payload[field].trim())
+  );
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -140,6 +146,10 @@ webhookRouter.post(
     }
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       throw new HttpError(400, 'Invalid Shiprocket webhook payload.');
+    }
+    if (isDashboardTestPayload(payload)) {
+      console.info('[shiprocket] dashboard sample webhook acknowledged.');
+      return res.status(200).json({ ok: true });
     }
     if (!payload.order_id && !payload.awb && !payload.shipment_id) {
       return res.status(200).json({ ok: true });
