@@ -21,6 +21,23 @@ function cashfreeHeaders() {
   };
 }
 
+function logCashfreeFailure(error) {
+  const providerError = error.response?.data;
+  let message = typeof providerError?.message === 'string'
+    ? providerError.message
+    : String(error.message || 'Unknown Cashfree error.');
+  for (const credential of [config.cashfreeAppId, config.cashfreeSecretKey]) {
+    if (credential) message = message.replaceAll(credential, '[redacted]');
+  }
+
+  console.error('[cashfree] order creation failed.', {
+    status: error.response?.status ?? error.status ?? null,
+    code: providerError?.code || error.code || null,
+    type: providerError?.type || null,
+    message: message.slice(0, 500),
+  });
+}
+
 export async function createCashfreeOrder(order) {
   requireCredentials();
   const returnSeparator = config.cashfreeReturnUrl.includes('?') ? '&' : '?';
@@ -65,6 +82,7 @@ export async function createCashfreeOrder(order) {
       paymentUrl: response.data.payment_link || null,
     };
   } catch (error) {
+    logCashfreeFailure(error);
     if (error instanceof HttpError) throw error;
     throw new HttpError(502, 'Could not create a Cashfree checkout session.');
   }
