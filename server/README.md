@@ -78,3 +78,9 @@ Accepts `kind` (`CONTACT` or `GIFTING_BULK`), `name`, `email`, and `message`; ph
 - Configure the storefront's root `.env` from `.env.example`; production builds must provide the deployed `VITE_API_URL` and `VITE_CASHFREE_ENV`. Provider flows still require sandbox testing with real credentials before launch.
 
 Run unit tests with `npm test`.
+
+## Vercel deployment
+
+Set the Vercel project's Root Directory to `server/`. The `vercel.json` configuration routes every request to the exported Express app. Configure `MONGODB_URI`, `CLIENT_URL` (the deployed storefront URL), `PUBLIC_API_URL`, and `CASHFREE_RETURN_URL` in the Vercel project environment; production URLs must use HTTPS. `CLIENT_ORIGINS` remains supported for additional storefront origins. MongoDB connections are reused across warm function invocations.
+
+Local development remains available with `npm run dev` from this directory.

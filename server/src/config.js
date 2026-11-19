@@ -10,14 +10,19 @@ if (!['SANDBOX', 'PRODUCTION'].includes(cashfreeEnv)) {
   throw new Error('CASHFREE_ENV must be SANDBOX or PRODUCTION.');
 }
 
+const clientOrigins = [
+  'http://localhost:5173',
+  process.env.CLIENT_URL || '',
+  ...(process.env.CLIENT_ORIGINS || 'http://127.0.0.1:5173').split(','),
+]
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
 export const config = Object.freeze({
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || '5000'),
   mongodbUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/natures-golden-gift',
-  clientOrigins: (process.env.CLIENT_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  clientOrigins,
   cashfreeEnv,
   cashfreeAppId: process.env.CASHFREE_APP_ID || '',
   cashfreeSecretKey: process.env.CASHFREE_SECRET_KEY || '',
@@ -36,8 +41,12 @@ export function assertRuntimeConfig() {
   if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
     throw new Error('PORT must be a valid TCP port.');
   }
-  if (config.nodeEnv === 'production' && !process.env.CLIENT_ORIGINS) {
-    throw new Error('CLIENT_ORIGINS must be configured in production.');
+  if (
+    config.nodeEnv === 'production' &&
+    ![process.env.CLIENT_URL, process.env.CLIENT_ORIGINS]
+      .some((value) => value?.split(',').some((origin) => origin.trim()))
+  ) {
+    throw new Error('CLIENT_URL or CLIENT_ORIGINS must be configured in production.');
   }
   if (
     config.nodeEnv === 'production' &&

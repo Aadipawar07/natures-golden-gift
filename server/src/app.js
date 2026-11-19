@@ -7,7 +7,7 @@ import { asyncRoute, errorHandler, HttpError } from './errors.js';
 import { inquiryRoutes } from './routes/inquiryRoutes.js';
 import { paymentRoutes, cashfreeWebhookRoutes } from './routes/paymentRoutes.js';
 import { shippingRoutes, shiprocketWebhookRoutes } from './routes/shippingRoutes.js';
-import { mongoose } from '../config/db.js';
+import { connectDB, mongoose } from '../config/db.js';
 
 const app = express();
 const apiLimiter = rateLimit({
@@ -43,6 +43,11 @@ app.use(cors({
     'X-Order-Contact',
     'x-api-key',
   ],
+}));
+
+app.use(asyncRoute(async (req, res, next) => {
+  await connectDB();
+  next();
 }));
 
 app.get(

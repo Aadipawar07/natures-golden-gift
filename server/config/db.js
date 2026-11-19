@@ -1,34 +1,45 @@
 import mongoose from 'mongoose';
 import { config } from '../src/config.js';
 
-let connectionPromise;
+const cached = globalThis.mongooseConn || { connection: null, promise: null };
+globalThis.mongooseConn = cached;
 
 mongoose.connection.on('error', (error) => {
   console.error('MongoDB connection error:', error.name);
 });
 
 export async function connectDB(uri = config.mongodbUri) {
-  if (mongoose.connection.readyState === 1) return mongoose.connection;
-  if (connectionPromise) return connectionPromise;
+  if (mongoose.connection.readyState === 1) {
+    cached.connection = mongoose.connection;
+    return cached.connection;
+  }
+  if (cached.connection?.readyState === 1) return cached.connection;
+  if (cached.promise) return cached.promise;
   if (!uri) throw new Error('MONGODB_URI is required to connect to MongoDB.');
 
-  connectionPromise = mongoose.connect(uri, {
+  cached.promise = mongoose.connect(uri, {
     serverSelectionTimeoutMS: 10000,
     maxPoolSize: 10,
   }).then(({ connection }) => {
+    cached.connection = connection;
     console.log(`MongoDB Connected: ${connection.host}/${connection.name}`);
     return connection;
+  }).catch((error) => {
+    cached.connection = null;
+    throw error;
   }).finally(() => {
-    connectionPromise = null;
+    cached.promise = null;
   });
 
-  return connectionPromise;
+  return cached.promise;
 }
 
 export async function disconnectDB() {
   if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
   }
+  cached.connection = null;
+  cached.promise = null;
 }
 
 export { mongoose };
