@@ -9,7 +9,7 @@ process.env.CLIENT_ORIGINS = '';
 process.env.PUBLIC_API_URL = 'https://api.example.com';
 process.env.CASHFREE_RETURN_URL = 'https://store.example.com/checkout';
 process.env.CASHFREE_SECRET_KEY = 'unit-cashfree-webhook-secret';
-process.env.SHIPROCKET_WEBHOOK_TOKEN = 'unit-shiprocket-webhook-token';
+process.env.SHIPROCKET_WEBHOOK_TOKEN = '';
 
 const { default: app } = await import('../index.js');
 const { connectDB, disconnectDB, mongoose } = await import('../config/db.js');
@@ -206,12 +206,9 @@ test('Cashfree acknowledges unknown IDs but requires signatures for stored order
   const shiprocketResponse = await fetch(
     `http://127.0.0.1:${server.address().port}/api/webhooks/courier-updates`,
     {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.SHIPROCKET_WEBHOOK_TOKEN,
-    },
-    body: JSON.stringify({ order_id: 'unmatched-123' }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order_id: 'unmatched-123' }),
     }
   );
   assert.equal(shiprocketResponse.status, 200);

@@ -64,7 +64,7 @@ Configure this HTTPS URL in Cashfree. The API verifies `x-webhook-signature` aga
 
 - `GET /api/shipping/check-pincode/:pincode?weight=0.5` — returns serviceability, estimated days, and COD availability.
 - `GET /api/orders/track/:orderNumber` — send the registered email or phone in the `X-Order-Contact` header; returns shipment/payment status and tracking events.
-- `/api/webhooks/shiprocket` and `/api/webhooks/courier-updates` — configure Shiprocket to send `x-api-key` using `SHIPROCKET_WEBHOOK_TOKEN` for POST events. `GET`/`HEAD` probes, POST payloads without order, AWB, or shipment IDs, Shiprocket's placeholder sample payload, and unmatched orders are acknowledged with `{ "ok": true }`. Unmatched orders are logged; status updates are normalized and cannot downgrade an order's saved shipment milestone.
+- `/api/webhooks/shiprocket` and `/api/webhooks/courier-updates` — Shiprocket's security token is optional; when configured as `SHIPROCKET_WEBHOOK_TOKEN`, send it in `x-api-key`. `GET`/`HEAD` probes, POST payloads without order, AWB, or shipment IDs, Shiprocket's placeholder sample payload, and unmatched orders are acknowledged with `{ "ok": true }`. Unmatched orders are logged; status updates are normalized and cannot downgrade an order's saved shipment milestone.
 
 ### `POST /api/inquiries`
 

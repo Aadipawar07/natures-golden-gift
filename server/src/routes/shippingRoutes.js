@@ -156,7 +156,10 @@ webhookRouter.post(
     }
 
     const suppliedToken = req.get('x-api-key');
-    if (!verifySharedToken(config.shiprocketWebhookToken, suppliedToken)) {
+    if (
+      config.shiprocketWebhookToken &&
+      !verifySharedToken(config.shiprocketWebhookToken, suppliedToken)
+    ) {
       throw new HttpError(401, 'Invalid Shiprocket webhook token.');
     }
 
